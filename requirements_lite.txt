@@ -1,0 +1,10 @@
+# Lightweight Biometric Auth Dependencies
+# No PyTorch required!
+
+numpy>=1.20.0
+bchlib>=0.14.0
+cryptography>=41.0.0
+
+# Optional: for blockchain integration
+# web3>=6.0.0
+# eth-account>=0.10.0
