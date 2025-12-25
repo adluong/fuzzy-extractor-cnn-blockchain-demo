@@ -260,6 +260,7 @@ for i in random.sample(range(511), num_errors):
 ### Installation
 
 ```bash
+pip install certifi
 pip install -r requirements.txt
 python download_weights.py  # If SSL issues
 ```
