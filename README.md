@@ -373,7 +373,7 @@ python main.py --mode demo
 3. Dodis et al., "Fuzzy Extractors: How to Generate Strong Keys from Biometrics", SIAM J. Computing 2008
 4. Teoh et al., "BioHashing: Two Factor Authentication Featuring Fingerprint Data", Pattern Recognition 2004
 5. facenet-pytorch: https://github.com/timesler/facenet-pytorch
-
+<!-- 
 ## Citation
 
 ```bibtex
@@ -389,6 +389,6 @@ python main.py --mode demo
 
 MIT License - See LICENSE file for details.
 
----
+--- -->
 
 *For detailed technical analysis, see `PROJECT_REPORT_2.md`*
