@@ -38,6 +38,13 @@ from blockchain_client import (
     BiometricKeyPair
 )
 
+# Check if FaceNet is available (in model.py)
+try:
+    from model import FaceNetEncoder, HAS_FACENET
+except ImportError:
+    HAS_FACENET = False
+    FaceNetEncoder = None
+
 
 class BiometricPipeline:
     """
@@ -56,17 +63,35 @@ class BiometricPipeline:
     def __init__(
         self, 
         config: SystemConfig = None,
-        use_mock_blockchain: bool = True
+        use_mock_blockchain: bool = True,
+        use_facenet: bool = True
     ):
         self.config = config or DEFAULT_CONFIG
         
         # Initialize components
         print("Initializing Biometric Pipeline...")
         
-        # 1. CNN Encoder
+        # 1. CNN Encoder - prefer FaceNet for production-quality embeddings
         print("  [1/4] Loading CNN encoder...")
-        self.encoder = BiometricEncoder(self.config.cnn)
-        self.encoder.eval()
+        if use_facenet and HAS_FACENET:
+            try:
+                self.encoder = FaceNetEncoder(pretrained='vggface2')
+                self._encoder_type = 'facenet'
+            except Exception as e:
+                print(f"    FaceNet init failed: {e}")
+                print("    Falling back to default encoder...")
+                self.encoder = BiometricEncoder(self.config.cnn)
+                self.encoder.eval()
+                self._encoder_type = 'resnet'
+        else:
+            self.encoder = BiometricEncoder(self.config.cnn)
+            self.encoder.eval()
+            self._encoder_type = 'resnet'
+            if use_facenet and not HAS_FACENET:
+                print("    WARNING: FaceNet requested but not installed")
+                print("    Install with: pip install facenet-pytorch")
+        
+        print(f"    Encoder type: {self._encoder_type}")
         
         # 2. BioHasher
         print("  [2/4] Initializing BioHasher...")
@@ -86,6 +111,16 @@ class BiometricPipeline:
         
         print("Pipeline initialized successfully!\n")
     
+    @property
+    def input_size(self) -> Tuple[int, int]:
+        """Get the expected input image size for the encoder."""
+        if hasattr(self.encoder, 'input_size'):
+            return self.encoder.input_size
+        elif self._encoder_type == 'facenet':
+            return (160, 160)
+        else:
+            return (112, 112)
+    
     def extract_features(self, image: torch.Tensor) -> torch.Tensor:
         """
         Extract normalized embedding from biometric image.
@@ -100,7 +135,16 @@ class BiometricPipeline:
             image = image.unsqueeze(0)
         
         with torch.no_grad():
-            embedding = self.encoder(image)
+            if self._encoder_type == 'facenet':
+                # FaceNet handles preprocessing internally
+                embedding = self.encoder(image)
+            else:
+                # Original ResNet encoder
+                embedding = self.encoder(image)
+        
+        # Ensure embedding is 2D: (1, embedding_dim)
+        if embedding.dim() == 1:
+            embedding = embedding.unsqueeze(0)
         
         return embedding
     
@@ -285,8 +329,10 @@ def run_demo():
     print("-" * 40)
     
     # Generate a synthetic "biometric" (random image that represents the user)
+    # Use the correct input size for the encoder
+    input_size = pipeline.input_size
     torch.manual_seed(42)  # For reproducibility
-    original_image = torch.randn(1, 3, 112, 112)
+    original_image = torch.randn(1, 3, input_size[0], input_size[1])
     print(f"Captured biometric image: {original_image.shape}")
     
     # Optional: User token for two-factor authentication
@@ -354,7 +400,7 @@ def run_demo():
     print("-" * 40)
     
     # Generate a different "user's" biometric
-    impostor_image = torch.randn(1, 3, 112, 112)
+    impostor_image = torch.randn(1, 3, input_size[0], input_size[1])
     
     start_time = time.time()
     success, errors = pipeline.authenticate(impostor_image, helper_data, user_token)
@@ -408,9 +454,10 @@ def run_benchmark():
     # Enroll users
     print("\n[ENROLLMENT PHASE]")
     users = []
+    input_size = pipeline.input_size
     for i in range(num_users):
         torch.manual_seed(i)
-        image = torch.randn(1, 3, 112, 112)
+        image = torch.randn(1, 3, input_size[0], input_size[1])
         secret_key, helper_data, keypair = pipeline.enroll(image)
         
         # Store original embedding for noise simulation
@@ -497,7 +544,7 @@ def run_benchmark():
     # Enrollment time
     times = []
     for _ in range(100):
-        image = torch.randn(1, 3, 112, 112)
+        image = torch.randn(1, 3, input_size[0], input_size[1])
         start = time.time()
         pipeline.enroll(image)
         times.append(time.time() - start)

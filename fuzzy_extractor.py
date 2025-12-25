@@ -76,6 +76,36 @@ class HelperData:
         return cls(sketch=sketch, salt=salt, version=version)
 
 
+def test_bch_directly():
+    """Direct test of BCH encode/decode without fuzzy extractor logic."""
+    print("\n[DIRECT BCH TEST]")
+    print("-" * 50)
+    
+    bch = BCHCode(m=9, t=29)
+    print(f"BCH parameters: n={bch.n}, k={bch.k}, t={bch.t}, ecc_bits={bch.ecc_bits}")
+    
+    # Generate random message
+    msg_bytes = bch.k // 8
+    original_msg = secrets.token_bytes(msg_bytes)
+    print(f"Original message: {msg_bytes} bytes")
+    
+    # Encode
+    codeword = bch.encode(original_msg, debug=True)
+    print(f"Codeword length: {len(codeword)} bytes")
+    
+    # Decode immediately (no errors)
+    recovered, nerrors = bch.decode(codeword, debug=True)
+    
+    if recovered is not None:
+        match = recovered == original_msg[:len(recovered)]
+        print(f"Recovery: {'✓ SUCCESS' if match else '✗ MISMATCH'}")
+        print(f"Errors corrected: {nerrors}")
+    else:
+        print("Recovery: ✗ FAILED")
+    
+    return recovered is not None
+
+
 class BCHCode:
     """
     BCH error-correcting code wrapper.
@@ -181,12 +211,13 @@ class BCHCode:
         print(f"WARNING: Could not initialize BCH({m}, {t}). Using fallback mode.")
         return None
     
-    def encode(self, message: bytes) -> bytes:
+    def encode(self, message: bytes, debug: bool = False) -> bytes:
         """
         Encode message into BCH codeword.
         
         Args:
             message: Input bytes (will be padded/truncated to k bits)
+            debug: Print debug information
             
         Returns:
             BCH codeword as bytes
@@ -199,17 +230,22 @@ class BCHCode:
             # Compute ECC
             ecc = self.bch.encode(padded_msg)
             
+            if debug:
+                print(f"  [BCH.encode] msg_bytes={msg_bytes}, len(ecc)={len(ecc)}, "
+                      f"total={msg_bytes + len(ecc)}")
+            
             # Codeword = message || ECC
             return padded_msg + ecc
         else:
             return self._fallback_encode(message)
     
-    def decode(self, codeword: bytes) -> Tuple[Optional[bytes], int]:
+    def decode(self, codeword: bytes, debug: bool = False) -> Tuple[Optional[bytes], int]:
         """
         Decode BCH codeword, correcting up to t errors.
         
         Args:
             codeword: Received (possibly corrupted) codeword
+            debug: Print debug information
             
         Returns:
             (corrected_message, num_errors) or (None, -1) if uncorrectable
@@ -217,20 +253,56 @@ class BCHCode:
         if self.bch is not None:
             # Split codeword into data and ECC
             msg_bytes = self.k // 8
-            ecc_bytes = self.ecc_bits // 8
+            
+            # CRITICAL: Use actual ECC byte length, not floor division!
+            # bchlib.encode() returns ceil(ecc_bits/8) bytes
+            # Different bchlib versions expose this differently
+            if hasattr(self.bch, 'ecc_bytes'):
+                ecc_bytes = self.bch.ecc_bytes
+            else:
+                # Fallback: calculate ceil(ecc_bits/8)
+                ecc_bytes = (self.ecc_bits + 7) // 8
+            
+            if debug:
+                print(f"  [BCH.decode] codeword_len={len(codeword)}, msg_bytes={msg_bytes}, "
+                      f"ecc_bytes={ecc_bytes}, expected_total={msg_bytes + ecc_bytes}")
             
             data = bytearray(codeword[:msg_bytes])
             ecc = bytearray(codeword[msg_bytes:msg_bytes + ecc_bytes])
             
+            if debug:
+                print(f"  [BCH.decode] actual data_len={len(data)}, actual ecc_len={len(ecc)}")
+            
             # Attempt to decode
             try:
-                # bchlib.decode modifies data in-place
-                nerrors = self.bch.decode(data, ecc)
+                # bchlib.decode has different return types in different versions:
+                # - Some versions: returns int (nerrors), modifies data/ecc in place
+                # - Other versions: returns tuple (nerrors, corrected_data, corrected_ecc)
+                result = self.bch.decode(data, ecc)
+                
+                if debug:
+                    print(f"  [BCH.decode] result type={type(result)}, result={result if not isinstance(result, tuple) else f'tuple len={len(result)}'}")
+                
+                # Handle both API versions
+                if isinstance(result, tuple):
+                    # Newer API: returns (nerrors, corrected_data, corrected_ecc)
+                    nerrors = result[0]
+                    if len(result) > 1 and result[1] is not None:
+                        data = bytearray(result[1])  # Use returned corrected data
+                else:
+                    # Older API: returns just nerrors, data modified in place
+                    nerrors = result
+                
+                if debug:
+                    print(f"  [BCH.decode] nerrors={nerrors}")
+                
                 if nerrors >= 0:
                     return bytes(data), nerrors
                 else:
                     return None, -1
-            except Exception:
+            except Exception as e:
+                if debug:
+                    print(f"  [BCH.decode] Exception: {e}")
                 return None, -1
         else:
             return self._fallback_decode(codeword)
@@ -307,9 +379,10 @@ class FuzzyExtractor:
         codeword = self.bch.encode(random_key)
         
         # 3. Compute sketch: P = codeword ⊕ biometric
-        # Ensure biometric is the right length
-        bio_bytes = self.n // 8 + (1 if self.n % 8 else 0)
-        padded_bio = biometric[:bio_bytes].ljust(bio_bytes, b'\x00')
+        # CRITICAL: Pad biometric to match CODEWORD length, not n bits!
+        # bchlib produces byte-aligned codewords that may be longer than ceil(n/8)
+        codeword_len = len(codeword)
+        padded_bio = biometric[:codeword_len].ljust(codeword_len, b'\x00')
         
         sketch = self._xor_bytes(codeword, padded_bio)
         
@@ -347,8 +420,9 @@ class FuzzyExtractor:
             helper = HelperData.from_bytes(helper)
         
         # 1. Compute noisy codeword: c' = P ⊕ w'
-        bio_bytes = self.n // 8 + (1 if self.n % 8 else 0)
-        padded_bio = biometric[:bio_bytes].ljust(bio_bytes, b'\x00')
+        # CRITICAL: Pad biometric to match SKETCH length (which equals codeword length)
+        sketch_len = len(helper.sketch)
+        padded_bio = biometric[:sketch_len].ljust(sketch_len, b'\x00')
         
         noisy_codeword = self._xor_bytes(helper.sketch, padded_bio)
         
@@ -614,4 +688,11 @@ def test_fuzzy_extractor():
 
 
 if __name__ == "__main__":
-    test_fuzzy_extractor()
+    # First run direct BCH test
+    bch_ok = test_bch_directly()
+    
+    if bch_ok:
+        print("\nDirect BCH test passed! Running full fuzzy extractor test...")
+        test_fuzzy_extractor()
+    else:
+        print("\n⚠️ Direct BCH test FAILED! Not running fuzzy extractor test.")

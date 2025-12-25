@@ -6,7 +6,11 @@
 # ============================================================
 torch>=2.0.0
 torchvision>=0.15.0
-numpy>=1.24.0
+numpy>=1.24.0,<2.0  # Must be <2.0 for torchvision compatibility
+
+# Face recognition (pretrained model - recommended)
+facenet-pytorch>=2.5.0
+facenet-pytorch>=2.5.0  # Pretrained face recognition model (RECOMMENDED)
 
 # ============================================================
 # Cryptography
