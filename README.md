@@ -1,6 +1,6 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
-
-A production-grade implementation of biometric authentication combining deep learning, information-theoretic cryptography, and blockchain technology.
+- **Big note: this repository is created and run with the help of Claude. The codes are not audited and are designed for testing purpose only - adluong**
+- A production-grade implementation of biometric authentication combining deep learning, information-theoretic cryptography, and blockchain technology.
 
 ## Architecture Overview
 
