@@ -514,7 +514,7 @@ python main.py --mode demo
 4. Teoh et al., "BioHashing: Two Factor Authentication Featuring Fingerprint Data", Pattern Recognition 2004
 5. facenet-pytorch: https://github.com/timesler/facenet-pytorch
 
-## Citation
+<!-- ## Citation
 
 ```bibtex
 @software{cnn_fe_blockchain_2024,
@@ -529,6 +529,6 @@ python main.py --mode demo
 
 MIT License - See LICENSE file for details.
 
----
+--- -->
 
 *For detailed technical analysis, see `PROJECT_REPORT3.md`*
