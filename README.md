@@ -1,6 +1,8 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
 
-A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
+- **NOTE: this repository is created and run with the help of Claude. The codes are not audited and are designed for testing purpose only -- adluong**
+
+- A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
 
 [![Status](https://img.shields.io/badge/status-working-brightgreen)]()
 [![FRR](https://img.shields.io/badge/FRR-15.64%25-blue)]()
