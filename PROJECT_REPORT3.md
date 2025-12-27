@@ -19,6 +19,7 @@
 7. [Security Analysis](#7-security-analysis)
 8. [Usage Guide](#8-usage-guide)
 9. [Future Improvements](#9-future-improvements)
+10. [Blockchain Transaction Fee Analysis](#10-blockchain-transaction-fee-analysis)
 
 ---
 
@@ -430,10 +431,77 @@ recovered_key, errors = fuzzy_extractor.rep(binary_code, helper_data)
 - [x] Reliable bit selection
 - [x] BCH error correction
 - [x] LFW evaluation (FRR 15.64%, FAR 0%)
+- [x] Blockchain gas evaluation
 - [ ] Multi-sample enrollment
 - [ ] Liveness detection
 - [ ] Blockchain deployment
 - [ ] Security audit
+
+---
+
+## 10. Blockchain Transaction Fee Analysis
+
+### 10.1 Gas Cost Summary
+
+| Operation | Gas | ETH | USD* |
+|-----------|-----|-----|------|
+| **register()** | 194,389 | 0.00389 | $13.61 |
+| **requestChallenge()** | 67,599 | 0.00135 | $4.73 |
+| **authenticate()** | 76,950 | 0.00154 | $5.39 |
+| **getHelperData()** | FREE | FREE | FREE |
+
+*At 20 Gwei gas price, $3,500/ETH
+
+### 10.2 Complete Flow Costs
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BLOCKCHAIN GAS COST BENCHMARK                         │
+├─────────────────────────┬──────────────┬───────────────┬────────────────┤
+│ Operation               │ Gas          │ ETH           │ USD            │
+├─────────────────────────┼──────────────┼───────────────┼────────────────┤
+│ ENROLLMENT (one-time)   │    194,389   │    0.00388778 │ $     13.6072  │
+│ AUTH FLOW (per-login)   │    144,549   │    0.00289098 │ $     10.1184  │
+└─────────────────────────┴──────────────┴───────────────┴────────────────┘
+```
+
+### 10.3 Cost by Network
+
+| Network | Gas Price | Register | Auth Flow |
+|---------|-----------|----------|-----------|
+| Ethereum Mainnet | 20 Gwei | $13.61 | $10.12 |
+| Ethereum (High) | 100 Gwei | $68.04 | $50.59 |
+| **Polygon** | 50 Gwei | **$0.008** | **$0.006** |
+| **Arbitrum** | 0.1 Gwei | **$0.068** | **$0.051** |
+| **Optimism** | 0.01 Gwei | **$0.007** | **$0.005** |
+| BSC | 5 Gwei | $0.29 | $0.22 |
+| Local/Testnet | 0 | FREE | FREE |
+
+### 10.4 Cost Comparison with Other Systems
+
+| System | Setup Cost | Per-Auth Cost |
+|--------|-----------|---------------|
+| Traditional Password DB | Free | $0.001/query |
+| OAuth/OIDC (Auth0) | Free | $0.01-0.05/auth |
+| SMS OTP | Free | $0.01-0.05/SMS |
+| Hardware Token (YubiKey) | $50 upfront | Free |
+| **Our System (Ethereum)** | $13.61 | $10.12 |
+| **Our System (Polygon)** | **$0.008** | **$0.006** |
+
+### 10.5 Cost Projections (Ethereum Mainnet)
+
+| Logins/Day | Daily Cost | Monthly Cost | Yearly Cost |
+|------------|------------|--------------|-------------|
+| 1 | $10.12 | $303.55 | $3,693.23 |
+| 5 | $50.59 | $1,517.76 | $18,466.13 |
+| 10 | $101.18 | $3,035.53 | $36,932.27 |
+
+### 10.6 Recommendations
+
+1. **Development/Testing**: Use local testnet (Ganache/Hardhat) — FREE
+2. **Production (Low Cost)**: Use Layer 2 (Polygon, Arbitrum, Optimism) — $0.01-0.07/auth
+3. **Production (Security)**: Use Ethereum Mainnet — $10-15/auth
+4. **Hybrid**: Store helper data on IPFS, only hash on-chain — reduces storage costs by 50%
 
 ---
 

@@ -2,7 +2,7 @@
 
 - **NOTE: this repository is created and run with the help of Claude. The codes are not audited and are designed for testing purpose only -- adluong**
 
-A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
+- A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
 
 [![Status](https://img.shields.io/badge/status-working-brightgreen)]()
 [![FRR](https://img.shields.io/badge/FRR-15.64%25-blue)]()
@@ -180,6 +180,41 @@ BCH: (511, 268, 29) - corrects up to 29 errors
 | Enrollment | ~20 ms |
 | Authentication | ~20 ms |
 
+## 💰 Blockchain Transaction Fees
+
+```bash
+# Evaluate gas costs
+python evaluate_blockchain.py
+
+# With custom parameters
+python evaluate_blockchain.py --eth-price 4000 --gas-price 30
+
+# Layer 2 costs
+python evaluate_blockchain.py --l2
+```
+
+### Gas Cost Summary
+
+| Operation | Gas | ETH | USD* |
+|-----------|-----|-----|------|
+| register() | 194,389 | 0.00389 | $13.61 |
+| requestChallenge() | 67,599 | 0.00135 | $4.73 |
+| authenticate() | 76,950 | 0.00154 | $5.39 |
+| getHelperData() | FREE | FREE | FREE |
+
+*At 20 Gwei, $3,500/ETH
+
+### Cost by Network
+
+| Network | Register | Auth Flow |
+|---------|----------|-----------|
+| Ethereum Mainnet | $13.61 | $10.12 |
+| **Polygon** | **$0.008** | **$0.006** |
+| **Arbitrum** | **$0.068** | **$0.051** |
+| Local/Testnet | FREE | FREE |
+
+**Recommendation:** Use Layer 2 (Polygon, Arbitrum) for 100-1000x lower costs.
+
 ## Project Structure
 
 ```
@@ -188,6 +223,7 @@ BCH: (511, 268, 29) - corrects up to 29 errors
 ├── main_lite.py             # Lightweight version (NumPy only, no PyTorch)
 ├── evaluate_improved.py     # Improved BioHash evaluation (recommended) [NEW]
 ├── evaluate_real.py         # Standard BioHash evaluation (LFW + binary noise)
+├── evaluate_blockchain.py   # Blockchain gas/fee evaluation [NEW]
 ├── model.py                 # FaceNet encoder (pretrained VGGFace2)
 ├── biohashing.py            # Standard BioHash (511 bits)
 ├── biohashing_improved.py   # Improved BioHash with reliable bit selection [NEW]
@@ -196,15 +232,11 @@ BCH: (511, 268, 29) - corrects up to 29 errors
 ├── config.py                # System configuration
 ├── diagnose.py              # Component verification tool
 ├── download_weights.py      # SSL fix for FaceNet weights
-├── evaluate.py              # Legacy evaluation script
-├── train.py                 # CNN training script
-├── feature_extractor_lite.py # NumPy feature extractor (for lite version)
-├── BiometricAuth.sol        # Solidity smart contract
+├── contracts/
+│   └── BiometricAuth.sol    # Solidity smart contract
 ├── requirements.txt         # Full dependencies
 ├── requirements_lite.txt    # Minimal dependencies
 ├── PROJECT_REPORT3.md       # Technical report v3 (current) [NEW]
-├── PROJECT_REPORT_1.md      # Technical report v1
-├── PROJECT_REPORT_2.md      # Technical report v2
 └── README.md                # This file
 ```
 
