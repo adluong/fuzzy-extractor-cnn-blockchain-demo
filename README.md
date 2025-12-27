@@ -111,7 +111,7 @@ python main.py --mode benchmark
 python main_lite.py
 ```
 
-### Real-World Evaluation (Recommended for Papers)
+### Real-World Evaluation
 
 ```bash
 # Install scikit-learn for LFW dataset
