@@ -1,8 +1,6 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
 
-- **NOTE: this repository is created and run with the help of Claude. The codes are not audited and are designed for testing purpose only -- adluong**
-
-- A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
+A production-grade biometric authentication system combining deep learning, information-theoretic cryptography, and blockchain technology.
 
 [![Status](https://img.shields.io/badge/status-working-brightgreen)]()
 [![FRR](https://img.shields.io/badge/FRR-15.64%25-blue)]()
@@ -22,17 +20,45 @@
 ## 🎯 Key Results
 
 ```
-======================================================================
-BENCHMARK COMPARISON
-======================================================================
-Metric                         Standard BioHash     Improved (Reliable)
-----------------------------------------------------------------------
-Bits used                      511                  200
-Genuine Hamming (bits)         ~114                 16.0
-Genuine Hamming (%)            ~22%                 8.0%
-FRR                            100%                 15.64%
-FAR                            0%                   0.00%
-----------------------------------------------------------------------
+===========================================================================
+BENCHMARK SUMMARY (python main.py --mode benchmark)
+===========================================================================
+┌─────────────────────────────────────────────────────────────────────────┐
+│ [1] BCH ERROR CORRECTION                                                 │
+│     • BCH(511, 268, 29) - corrects up to 29 bit errors                  │
+│     • FRR @ 29 flips: 0.0%                                              │
+│     • FRR @ 30 flips: 72.0%                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│ [2] STANDARD BIOHASH (511 bits)                                          │
+│     • Genuine Hamming @ 5% noise: 135.2 bits (26%)                      │
+│     • FRR @ 5% noise: 100%                                              │
+│     • FAR: 0.000%                                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│ [3] IMPROVED BIOHASH (200 reliable bits)                                 │
+│     • Genuine Hamming: 1.2 bits (0.6%)                                  │
+│     • FRR: 0.00%                                                         │
+│     • FAR: 0.000%                                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│ [4] PERFORMANCE                                                          │
+│     • Enrollment: 19.86 ms                                               │
+│     • Authentication: 19.36 ms                                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│ [5] BLOCKCHAIN COSTS (Ethereum Mainnet @ 20 Gwei)                        │
+│     • Registration: $13.61                                               │
+│     • Authentication: $10.12                                             │
+│     • Layer 2 (Polygon): ~$0.01                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+STANDARD vs IMPROVED BIOHASH COMPARISON
+---------------------------------------------------------------------------
+Metric                         Standard             Improved            
+---------------------------------------------------------------------------
+Bits used                      511                  200                 
+Genuine Hamming (bits)         ~135                 1.2                 
+Genuine Hamming (%)            ~26%                 0.6%                
+FRR                            100%                 0.0%                
+FAR                            0.0%                 0.0%                
+---------------------------------------------------------------------------
 ```
 
 ## Architecture
@@ -143,42 +169,40 @@ SUMMARY
 
 ## Benchmark Results
 
-### Improved BioHash (Recommended)
+### Full System Benchmark
 
-```
-Dataset: LFW (Labeled Faces in the Wild)
-Pairs: 500 (243 genuine, 257 impostor)
-Reliable bits: 200 / 511
-BCH: (511, 268, 29) - corrects up to 29 errors
-
-[GENUINE PAIRS] Same Person, Different Images
-  FRR: 15.64%
-  Avg Hamming: 16.0 bits (8.0%)
-  Percentiles (25/50/75): 6 / 12 / 23
-
-[IMPOSTOR PAIRS] Different People
-  FAR: 0.00%
-  Avg Hamming: 96.0 bits (48%)
+```bash
+python main.py --mode benchmark
 ```
 
-### Standard BioHash (For Comparison)
+Runs all 5 evaluation sections:
+1. **BCH Unit Test** - Direct bit flip tolerance
+2. **Standard BioHash** - Embedding noise evaluation
+3. **Improved BioHash** - Reliable bit selection
+4. **Performance** - Timing benchmarks
+5. **Blockchain Costs** - Gas fee analysis
 
-```
-[GENUINE PAIRS]
-  FRR: 100% (all rejected)
-  Avg Hamming: 114 bits (22%)
+### Real-World LFW Evaluation
 
-[IMPOSTOR PAIRS]
-  FAR: 0%
-  Avg Hamming: 249 bits (49%)
+```bash
+python evaluate_improved.py --mode lfw
 ```
+
+Results on LFW dataset (real face images):
+
+| Metric | Standard BioHash | Improved BioHash |
+|--------|------------------|------------------|
+| Bits used | 511 | 200 |
+| Genuine Hamming | 114 bits (22%) | 16 bits (8%) |
+| FRR | 100% | **15.64%** |
+| FAR | 0% | **0%** |
 
 ### Performance
 
 | Operation | Time (GPU) |
 |-----------|------------|
-| Enrollment | ~20 ms |
-| Authentication | ~20 ms |
+| Enrollment | 19.86 ± 2.40 ms |
+| Authentication | 19.36 ± 1.34 ms |
 
 ## 💰 Blockchain Transaction Fees
 

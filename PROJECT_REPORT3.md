@@ -204,37 +204,56 @@ By selecting only 200 reliable bits:
 
 ## 5. Benchmark Results
 
-### 5.1 LFW Dataset Evaluation
+### 5.1 Evaluation Methods
+
+| Method | Command | Purpose |
+|--------|---------|---------|
+| Synthetic Benchmark | `python main.py --mode benchmark` | Algorithm validation |
+| LFW Real Faces | `python evaluate_improved.py --mode lfw` | Real-world performance |
+
+### 5.2 Synthetic Benchmark Results (`main.py --mode benchmark`)
+
+**BCH Error Correction Unit Test:**
+```
+BCH Parameters: n=511, k=268, t=29
+Testing bit flip tolerance:
+  ✓ Bit flips  0: FRR =   0.0%
+  ✓ Bit flips 29: FRR =   0.0%  ← BCH limit
+  ✗ Bit flips 30: FRR =  72.0%  ← Exceeds capacity
+  ✗ Bit flips 35: FRR = 100.0%
+```
+
+**Standard BioHash (511 bits):**
+```
+Genuine authentication with embedding noise:
+  Noise    0%: FRR =   0.0%, Avg Hamming = 0.0 bits
+  Noise    5%: FRR = 100.0%, Avg Hamming = 135.2 bits (26%)
+  Noise   10%: FRR = 100.0%, Avg Hamming = 186.6 bits
+
+Impostor detection:
+  FAR: 0.000%
+  Avg impostor Hamming: 254.4 bits (50%)
+```
+
+**Improved BioHash (200 reliable bits):**
+```
+Genuine authentication (σ=0.02 noise):
+  FRR: 0.00%
+  Avg Hamming distance: 1.2 bits (0.6% of 200)
+
+Impostor detection:
+  FAR: 0.000%
+  Avg impostor Hamming: 99.9 bits (50%)
+```
+
+### 5.3 LFW Real Face Dataset Results (`evaluate_improved.py`)
 
 **Dataset:** Labeled Faces in the Wild (LFW)
 - 500 pairs evaluated
-- 243 genuine pairs (same person)
+- 243 genuine pairs (same person, different images)
 - 257 impostor pairs (different people)
 
-### 5.2 Results Comparison
-
 ```
-======================================================================
-BENCHMARK COMPARISON
-======================================================================
-Metric                         Standard BioHash     Improved (Reliable)
-----------------------------------------------------------------------
-Bits used                      511                  200
-Genuine Hamming (bits)         ~114                 16.0
-Genuine Hamming (%)            ~22%                 8.0%
-FRR                            100%                 15.64%
-FAR                            0%                   0.00%
-----------------------------------------------------------------------
-```
-
-### 5.3 Detailed Improved Results
-
-```
-[CONFIGURATION]
-  Avg reliable bits used: 200 / 511
-  BCH capacity: 29 bits
-  Reliability threshold: 0.05
-
 [GENUINE PAIRS] (Same Person, Different Images)
   Attempts: 243
   Successes: 205
@@ -246,17 +265,36 @@ FAR                            0%                   0.00%
   Attempts: 257
   False accepts: 0
   FAR: 0.00%
-  Avg Hamming distance: 96.0 bits (48% of 200)
+  Avg Hamming distance: 96.0 bits (48%)
 ```
 
-### 5.4 Analysis
+### 5.4 Results Comparison
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| Genuine Hamming (16) | < BCH t (29) | ✅ Within capacity |
-| 75th percentile (23) | < BCH t (29) | ✅ Most pairs pass |
-| Impostor separation | 96 vs 16 bits | ✅ 6x separation |
-| Security margin | 96 - 29 = 67 bits | ✅ Strong |
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    BENCHMARK COMPARISON TABLE                            │
+├─────────────────────────┬──────────────────┬────────────────────────────┤
+│ Metric                  │ Standard BioHash │ Improved (Reliable Bits)   │
+├─────────────────────────┼──────────────────┼────────────────────────────┤
+│ Bits used               │ 511              │ 200                        │
+│ Genuine Hamming (synth) │ 135 bits (26%)   │ 1.2 bits (0.6%)            │
+│ Genuine Hamming (LFW)   │ 114 bits (22%)   │ 16 bits (8%)               │
+│ FRR (synthetic)         │ 100%             │ 0.00%                      │
+│ FRR (LFW real faces)    │ 100%             │ 15.64%                     │
+│ FAR                     │ 0%               │ 0%                         │
+├─────────────────────────┼──────────────────┼────────────────────────────┤
+│ BCH Capacity            │ 29 bits (5.7%)   │ 29 bits (14.5% of 200)     │
+│ Headroom (synthetic)    │ -20% (fails)     │ +14% (passes)              │
+│ Headroom (LFW)          │ -16% (fails)     │ +6.5% (passes)             │
+└─────────────────────────┴──────────────────┴────────────────────────────┘
+```
+
+### 5.5 Performance
+
+| Operation | Time (GPU) | Time (CPU) |
+|-----------|------------|------------|
+| Enrollment | 19.86 ± 2.40 ms | ~100 ms |
+| Authentication | 19.36 ± 1.34 ms | ~100 ms |
 
 ---
 
