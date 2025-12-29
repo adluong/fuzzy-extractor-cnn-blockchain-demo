@@ -83,8 +83,8 @@ FAR                            0.0%                 0.0%
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/biometric-auth.git
-cd biometric-auth
+git clone https://github.com/adluong/fuzzy-extractor-cnn-blockchain-demo.git
+cd fuzzy-extractor-cnn-blockchain-demo
 
 # Create virtual environment (recommended)
 python -m venv venv
