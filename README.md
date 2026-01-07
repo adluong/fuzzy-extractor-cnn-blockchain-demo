@@ -1,5 +1,7 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
 
+- Important note: This project is created with the help of Claude and is for testing purpose only, DO NOT use it in product - adluong.
+
 > Post-quantum biometric authentication using FaceNet, LWE-based fuzzy extractors, and Ethereum smart contracts.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
