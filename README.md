@@ -70,8 +70,7 @@ biometric_auth/
 ├── fuzzy_extractor.py       # BCH-based FE
 ├── fuzzy_extractor_lwe.py   # LWE-based FE (post-quantum)
 ├── blockchain_client.py     # Ethereum client
-└── contracts/
-    └── BiometricAuth.sol    # Smart contract
+└── BiometricAuth.sol    # Smart contract
 ```
 
 ## Usage
@@ -150,7 +149,7 @@ success, errors = pipeline.authenticate(image, helper_data)
 ## Documentation
 
 - **[PROJECT_REPORT4.md](PROJECT_REPORT4.md)** — Complete technical documentation
-- **[contracts/BiometricAuth.sol](contracts/BiometricAuth.sol)** — Smart contract source
+- **[BiometricAuth.sol](BiometricAuth.sol)** — Smart contract source
 
 ## Requirements
 
