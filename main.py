@@ -30,7 +30,16 @@ from torch.utils.data import DataLoader, TensorDataset
 from config import SystemConfig, DEFAULT_CONFIG
 from model import BiometricModel, BiometricEncoder, create_model
 from biohashing import BioHasher, analyze_biohash_statistics
-from fuzzy_extractor import FuzzyExtractor, HelperData
+
+# Try LWE FuzzyExtractor first (post-quantum), fallback to BCH
+try:
+    from fuzzy_extractor_lwe import LWEFuzzyExtractor as FuzzyExtractor
+    from fuzzy_extractor_lwe import LWEHelperData as HelperData
+    FUZZY_EXTRACTOR_TYPE = 'LWE'
+except ImportError:
+    from fuzzy_extractor import FuzzyExtractor, HelperData
+    FUZZY_EXTRACTOR_TYPE = 'BCH'
+
 from blockchain_client import (
     BiometricAuthClient, 
     MockBlockchainClient, 
@@ -99,7 +108,11 @@ class BiometricPipeline:
         
         # 3. Fuzzy Extractor
         print("  [3/4] Initializing Fuzzy Extractor...")
-        self.fuzzy_extractor = FuzzyExtractor(self.config.fuzzy_extractor)
+        if FUZZY_EXTRACTOR_TYPE == 'LWE':
+            # LWE FE uses its own params, not BCH config
+            self.fuzzy_extractor = FuzzyExtractor()
+        else:
+            self.fuzzy_extractor = FuzzyExtractor(self.config.fuzzy_extractor)
         
         # 4. Blockchain Client
         print("  [4/4] Initializing Blockchain Client...")
@@ -418,13 +431,21 @@ def run_demo():
     
     security = pipeline.fuzzy_extractor.estimate_security(biometric_entropy=200)
     
-    print(f"  BCH Parameters: ({security['code_parameters']['n']}, "
-          f"{security['code_parameters']['k']}, {security['code_parameters']['t']})")
+    code_params = security['code_parameters']
+    if code_params.get('type') == 'LWE':
+        print(f"  LWE Parameters: n={code_params['n']}, m={code_params['m']}, q={code_params['q']}")
+        print(f"  Gaussian σ: {code_params['sigma']}")
+    else:
+        print(f"  BCH Parameters: ({code_params.get('n', 'N/A')}, "
+              f"{code_params.get('k', 'N/A')}, {code_params.get('t', 'N/A')})")
+    
     print(f"  Error tolerance: {security['error_tolerance']['max_error_rate']*100:.1f}% "
           f"({security['error_tolerance']['max_errors']} bits)")
     print(f"  Entropy leakage: {security['entropy_analysis']['leakage_bits']} bits")
     print(f"  Effective security: {security['entropy_analysis']['effective_security_bits']:.0f} bits")
     print(f"  Security level: {security['recommendation']}")
+    if security.get('post_quantum'):
+        print(f"  Post-Quantum: ✓ Yes")
     
     print("\n" + "=" * 70)
     print("Demo completed successfully!")
@@ -462,21 +483,22 @@ def run_benchmark():
     print("=" * 75)
     
     # =========================================================================
-    # SECTION 1: BCH UNIT TEST (Binary-Level Noise)
+    # SECTION 1: FUZZY EXTRACTOR UNIT TEST (Binary-Level Noise)
     # =========================================================================
     print("\n" + "=" * 75)
-    print("SECTION 1: BCH ERROR CORRECTION UNIT TEST")
+    print(f"SECTION 1: {FUZZY_EXTRACTOR_TYPE} ERROR CORRECTION UNIT TEST")
     print("=" * 75)
     
     pipeline = BiometricPipeline(use_mock_blockchain=True)
     input_size = pipeline.input_size
     
-    # BCH parameters
-    bch_t = pipeline.fuzzy_extractor.t
-    print(f"\nBCH Parameters: n={pipeline.fuzzy_extractor.n}, k={pipeline.fuzzy_extractor.k}, t={bch_t}")
-    print(f"Max correctable errors: {bch_t} bits ({bch_t/pipeline.fuzzy_extractor.n*100:.1f}%)")
+    # FE parameters
+    fe_t = pipeline.fuzzy_extractor.t
+    fe_n = pipeline.fuzzy_extractor.n
+    print(f"\n{FUZZY_EXTRACTOR_TYPE} Parameters: n={fe_n}, t={fe_t}")
+    print(f"Max correctable errors: {fe_t} bits ({fe_t/fe_n*100:.1f}%)")
     
-    # Enroll test users for BCH test
+    # Enroll test users for FE test
     print("\nEnrolling test users...")
     num_test_users = 20
     test_users = []
@@ -494,11 +516,11 @@ def run_benchmark():
         })
     
     # Test bit flip tolerance
-    print("\nTesting BCH error correction with direct bit flips:")
+    print(f"\nTesting {FUZZY_EXTRACTOR_TYPE} error correction with direct bit flips:")
     print("-" * 60)
     
     bit_flip_levels = [0, 5, 10, 15, 20, 25, 29, 30, 35, 40]
-    bch_results = {}
+    fe_results = {}
     
     for num_flips in bit_flip_levels:
         successes = 0
@@ -521,13 +543,13 @@ def run_benchmark():
         frr = (num_attempts - successes) / num_attempts * 100
         avg_errors = total_errors / max(successes, 1)
         
-        status = "✓" if num_flips <= bch_t else "✗"
+        status = "✓" if num_flips <= fe_t else "✗"
         print(f"  {status} Bit flips {num_flips:2d}: FRR = {frr:5.1f}%, Avg errors corrected = {avg_errors:.1f}")
         
-        bch_results[num_flips] = {'frr': frr, 'avg_errors': avg_errors}
+        fe_results[num_flips] = {'frr': frr, 'avg_errors': avg_errors}
     
     print("-" * 60)
-    print(f"Expected: FRR = 0% for flips ≤ {bch_t}, FRR > 0% for flips > {bch_t}")
+    print(f"Expected: FRR = 0% for flips ≤ {fe_t}, FRR > 0% for flips > {fe_t}")
     
     # =========================================================================
     # SECTION 2: STANDARD BIOHASH EVALUATION
@@ -875,10 +897,10 @@ def run_benchmark():
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                         BIOMETRIC BENCHMARK RESULTS                      │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ [1] BCH ERROR CORRECTION                                                 │
-│     • BCH({pipeline.fuzzy_extractor.n}, {pipeline.fuzzy_extractor.k}, {bch_t}) - corrects up to {bch_t} bit errors              │
-│     • FRR @ {bch_t} flips: {bch_results.get(bch_t, {}).get('frr', 'N/A'):.1f}%                                              │
-│     • FRR @ {bch_t+1} flips: {bch_results.get(bch_t+1, {}).get('frr', 'N/A'):.1f}%                                             │
+│ [1] {FUZZY_EXTRACTOR_TYPE} ERROR CORRECTION                                                 │
+│     • {FUZZY_EXTRACTOR_TYPE}(n={fe_n}, t={fe_t}) - corrects up to {fe_t} bit errors                     │
+│     • FRR @ {fe_t} flips: {fe_results.get(fe_t, {}).get('frr', 'N/A'):.1f}%                                              │
+│     • FRR @ {fe_t+1} flips: {fe_results.get(fe_t+1, {}).get('frr', 'N/A'):.1f}%                                             │
 ├─────────────────────────────────────────────────────────────────────────┤
 │ [2] STANDARD BIOHASH (511 bits)                                          │
 │     • Genuine Hamming @ 0% noise: {standard_results[0.0]['avg_hamming']:.1f} bits                              │
