@@ -531,8 +531,7 @@ biometric_auth/
 ├── biohashing_improved.py     # Reliable bit selection
 ├── model.py                   # FaceNet encoder
 ├── blockchain_client.py       # Ethereum client
-├── contracts/
-│   └── BiometricAuth.sol      # Smart contract
+├── BiometricAuth.sol      # Smart contract
 ├── evaluate_improved.py       # LFW evaluation
 ├── evaluate_blockchain.py     # Gas cost analysis
 ├── PROJECT_REPORT4.md         # This document
