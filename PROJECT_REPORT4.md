@@ -1,10 +1,10 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
 
-## Project Report v4.0 — Post-Quantum LWE Fuzzy Extractor
+## Project Report v4.0 — Dual Fuzzy Extractor Support
 
 **Date:** January 7, 2025  
 **Version:** 4.0.0  
-**Status:** ✅ Production-Ready with Post-Quantum Option
+**Status:** ✅ Production-Ready
 
 ---
 
@@ -12,8 +12,8 @@
 
 1. [Executive Summary](#1-executive-summary)
 2. [System Architecture](#2-system-architecture)
-3. [Fuzzy Extractor Comparison: BCH vs LWE](#3-fuzzy-extractor-comparison-bch-vs-lwe)
-4. [LWE Fuzzy Extractor Implementation](#4-lwe-fuzzy-extractor-implementation)
+3. [Fuzzy Extractor Comparison: BCH vs Repetition-Code](#3-fuzzy-extractor-comparison-bch-vs-repetition-code)
+4. [Repetition-Code Fuzzy Extractor Implementation](#4-repetition-code-fuzzy-extractor-implementation)
 5. [Benchmark Results](#5-benchmark-results)
 6. [Bottleneck Analysis](#6-bottleneck-analysis)
 7. [Security Analysis](#7-security-analysis)
@@ -30,7 +30,7 @@ This project implements a **biometric authentication system** combining:
 - **Deep Learning:** FaceNet (InceptionResnetV1) pretrained on VGGFace2
 - **Fuzzy Extractors:** 
   - **BCH(511, 268, 29)** — Information-theoretic security
-  - **LWE-based** — **NEW: Post-quantum security**
+  - **Repetition-Code** — Code-offset scheme with majority voting
 - **Improved BioHashing:** Reliable bit selection for stable templates
 - **Blockchain:** Ethereum smart contract for decentralized authentication
 
@@ -38,21 +38,19 @@ This project implements a **biometric authentication system** combining:
 
 | Feature | v3.0 | v4.0 |
 |---------|------|------|
-| Fuzzy Extractor | BCH only | BCH + **LWE (Post-Quantum)** |
-| Post-Quantum Security | ❌ | ✅ |
+| Fuzzy Extractor | BCH only | BCH + **Repetition-Code FE** |
 | Error Tolerance | 5.7% (29/511 bits) | 5.7% (same) |
 | Drop-in Replacement | — | ✅ |
 
-### Key Metrics (LWE Fuzzy Extractor)
+### Key Metrics (Repetition-Code Fuzzy Extractor)
 
 | Metric | Value | Status |
 |--------|-------|--------|
 | **Error Tolerance** | 29 bits (5.7%) | ✅ BCH-compatible |
 | **FRR @ 0 flips** | 0% | ✅ |
-| **FRR @ 29 flips** | ~15% | ✅ |
+| **FRR @ 29 flips** | ~14% | ✅ |
 | **FRR @ 30+ flips** | 85-100% | ✅ Properly rejects |
 | **FAR (impostor)** | 0% | ✅ |
-| **Post-Quantum** | Yes (LWE-based) | ✅ |
 
 ---
 
@@ -72,8 +70,8 @@ This project implements a **biometric authentication system** combining:
 │                                      ↓                                   │
 │                     ┌────────────────┴────────────────┐                 │
 │                     │                                  │                 │
-│              [BCH-FE (v3)]                    [LWE-FE (v4)]              │
-│              Classic Security              Post-Quantum Security         │
+│              [BCH-FE (v3)]                  [Repetition-FE (v4)]         │
+│          Information-Theoretic              Code-Offset Scheme           │
 │                     │                                  │                 │
 │                     └────────────────┬────────────────┘                 │
 │                                      ↓                                   │
@@ -88,10 +86,10 @@ This project implements a **biometric authentication system** combining:
 ### Component Selection
 
 ```python
-# Auto-selects LWE (post-quantum) if available, falls back to BCH
+# Auto-selects Repetition-Code FE if available, falls back to BCH
 try:
     from fuzzy_extractor_lwe import LWEFuzzyExtractor as FuzzyExtractor
-    FUZZY_EXTRACTOR_TYPE = 'LWE'  # Post-quantum
+    FUZZY_EXTRACTOR_TYPE = 'REP'  # Repetition-code based
 except ImportError:
     from fuzzy_extractor import FuzzyExtractor
     FUZZY_EXTRACTOR_TYPE = 'BCH'  # Classic
@@ -99,20 +97,20 @@ except ImportError:
 
 ---
 
-## 3. Fuzzy Extractor Comparison: BCH vs LWE
+## 3. Fuzzy Extractor Comparison: BCH vs Repetition-Code
 
 ### Theoretical Comparison
 
-| Aspect | BCH-FE | LWE-FE |
-|--------|--------|--------|
-| **Security Basis** | Error-Correcting Codes | Learning With Errors (Lattice) |
-| **Security Type** | Information-theoretic | Computational |
-| **Post-Quantum** | ⚠️ Partial (ECC is, KDF may not be) | ✅ Yes |
-| **Error Model** | Hamming distance | Hamming distance (via code-offset) |
+| Aspect | BCH-FE | Repetition-Code FE |
+|--------|--------|---------------------|
+| **Security Basis** | Error-Correcting Codes | Code-Offset + Repetition |
+| **Security Type** | Information-theoretic | Computational (hash-based) |
+| **Error Model** | Hamming distance | Hamming distance |
 | **Error Tolerance** | t = 29 bits (5.7%) | t = 29 bits (5.7%) |
 | **Code Structure** | BCH(511, 268, 29) | Repetition(5) + Hash commitment |
 | **Helper Data Size** | ~80 bytes | ~120 bytes |
 | **Performance** | Faster | Slightly slower |
+| **Decoding** | Deterministic | Probabilistic (majority vote) |
 
 ### Implementation Details
 
@@ -129,18 +127,18 @@ Rep(w', helper):
     else: return ⊥
 ```
 
-**LWE-FE (v4):**
+**Repetition-Code FE (v4):**
 ```
 Gen(w):
-    k ← random key bits
-    encoded_k ← Repetition.encode(k, factor=5)
+    k ← random key bits (102 bits)
+    encoded_k ← Repetition.encode(k, factor=5)  # 510 bits
     s ← w ⊕ encoded_k
     return (KDF(k), helper=(s, hash(k)))
 
 Rep(w', helper):
     encoded_k' ← w' ⊕ s
     k' ← MajorityVote.decode(encoded_k')
-    errors ← count_errors(encoded_k', encoded_k')
+    errors ← count_minority_votes
     if errors > 29: return ⊥
     if hash(k') == stored_hash: return KDF(k')
     else: return ⊥
@@ -148,23 +146,23 @@ Rep(w', helper):
 
 ### Why Repetition Code?
 
-The LWE-FE uses a repetition code (factor=5) instead of pure LWE because:
+The Repetition-Code FE uses simple repetition encoding because:
 
-1. **Compatibility:** Matches BCH's bit-flip error model exactly
-2. **Simplicity:** No need for LWE decoding complexity
-3. **Post-Quantum:** Key derivation uses post-quantum safe operations
-4. **Efficiency:** Faster than full LWE decode
+1. **Simplicity:** Easy to implement and verify
+2. **Compatibility:** Matches BCH's bit-flip error model exactly
+3. **Efficiency:** Faster than algebraic decoding in some cases
+4. **Flexibility:** Error threshold easily adjustable
 
-The "LWE" naming reflects the post-quantum security goal rather than using LWE for error correction.
+**Note on Naming:** The file is named `fuzzy_extractor_lwe.py` for historical reasons, but the current implementation uses a **code-offset scheme with repetition codes**, not LWE (Learning With Errors). True LWE-based fuzzy extractors operate on field elements with Gaussian noise, not binary codes with Hamming distance errors.
 
 ---
 
-## 4. LWE Fuzzy Extractor Implementation
+## 4. Repetition-Code Fuzzy Extractor Implementation
 
 ### Core Algorithm
 
 ```python
-class LWEFuzzyExtractor:
+class RepetitionCodeFuzzyExtractor:
     def __init__(self):
         self.rep_factor = 5     # Each bit repeated 5 times
         self.t = 29             # Error threshold (BCH-compatible)
@@ -211,18 +209,26 @@ With repetition factor 5:
 - Each biometric error flips one encoded bit
 - Up to 29 biometric errors → at most ~0.28 errors/block average
 
+### BCH vs Repetition-Code Behavior
+
+| Property | BCH | Repetition-Code |
+|----------|-----|-----------------|
+| Decoding | Deterministic algebraic | Probabilistic majority vote |
+| At threshold (29 errors) | Always succeeds | ~86% success |
+| Error distribution | Doesn't matter | Clustered errors may fail |
+| Implementation | Complex (Galois fields) | Simple (bit operations) |
+
 ---
 
 ## 5. Benchmark Results
 
-### LWE Fuzzy Extractor Unit Test
+### Repetition-Code Fuzzy Extractor Unit Test
 
 ```
 ======================================================================
-LWE FUZZY EXTRACTOR TEST
+FUZZY EXTRACTOR TEST
 ======================================================================
-LWE-FuzzyExtractor initialized: LWE(n=64, m=64, q=2^24)
-  - Post-quantum: Yes (LWE-based)
+Repetition-Code FE initialized: Rep(factor=5, t=29)
   - Error tolerance: 29 bits (5.7%)
 
 [1] Systematic Error Tolerance Test
@@ -232,15 +238,14 @@ LWE-FuzzyExtractor initialized: LWE(n=64, m=64, q=2^24)
 ------------------------------------------------------------
   ✓ Bit flips  0: FRR =   0.0% (expected: pass)
   ✓ Bit flips  5: FRR =   0.0% (expected: pass)
-  ✓ Bit flips 10: FRR =   0.0% (expected: pass)
-  ✓ Bit flips 15: FRR =   0.0% (expected: pass)
-  ✓ Bit flips 20: FRR =   0.0% (expected: pass)
-  ✓ Bit flips 25: FRR =   5.0% (expected: pass)
-  ✓ Bit flips 29: FRR =  15.0% (expected: pass)
-  ✓ Bit flips 30: FRR =  85.0% (expected: fail)
+  ✓ Bit flips 10: FRR =   4.0% (expected: pass)
+  ✓ Bit flips 15: FRR =   2.0% (expected: pass)
+  ✓ Bit flips 20: FRR =   6.0% (expected: pass)
+  ✓ Bit flips 25: FRR =   6.0% (expected: pass)
+  ✓ Bit flips 29: FRR =  14.0% (expected: pass)
+  ✓ Bit flips 30: FRR =  92.0% (expected: fail)
   ✓ Bit flips 35: FRR = 100.0% (expected: fail)
   ✓ Bit flips 40: FRR = 100.0% (expected: fail)
-  ✓ Bit flips 50: FRR = 100.0% (expected: fail)
 
 [2] Basic Tests
 ------------------------------------------------------------
@@ -251,28 +256,28 @@ LWE-FuzzyExtractor initialized: LWE(n=64, m=64, q=2^24)
 ======================================================================
 ```
 
-### Full System Benchmark (with LWE-FE)
+### Full System Benchmark
 
 ```
 ===========================================================================
 COMPREHENSIVE BIOMETRIC AUTHENTICATION BENCHMARK
 ===========================================================================
 
-SECTION 1: LWE ERROR CORRECTION UNIT TEST
+SECTION 1: FUZZY EXTRACTOR ERROR CORRECTION UNIT TEST
 ---------------------------------------------------------------------------
-LWE Parameters: n=511, t=29
+Parameters: n=511, t=29
 Max correctable errors: 29 bits (5.7%)
 
-Testing LWE error correction with direct bit flips:
+Testing error correction with direct bit flips:
   ✓ Bit flips  0: FRR =   0.0%
-  ✓ Bit flips 29: FRR =   0.0%
-  ✗ Bit flips 30: FRR =  85.0%  ← Correctly rejects
+  ✓ Bit flips 29: FRR =  14.0%  ← At threshold
+  ✗ Bit flips 30: FRR =  92.0%  ← Correctly rejects
   ✗ Bit flips 40: FRR = 100.0%
 
 SECTION 2: STANDARD BIOHASH EVALUATION
 ---------------------------------------------------------------------------
   Noise    0%: FRR =   0.0%, Avg Hamming = 0.0 bits
-  Noise    5%: FRR = 100.0%, Avg Hamming = 135 bits (26%)
+  Noise    5%: FRR = 100.0%, Avg Hamming = 137 bits (27%)
   Impostor FAR: 0.000%
 
 SECTION 3: IMPROVED BIOHASH (Reliable Bit Selection)
@@ -284,8 +289,8 @@ SECTION 3: IMPROVED BIOHASH (Reliable Bit Selection)
 
 SECTION 4: PERFORMANCE
 ---------------------------------------------------------------------------
-  Enrollment:     59.85 ± 4.16 ms
-  Authentication: 56.89 ± 3.78 ms
+  Enrollment:     25.88 ± 3.05 ms
+  Authentication: 25.34 ± 2.30 ms
 
 SECTION 5: BLOCKCHAIN COSTS
 ---------------------------------------------------------------------------
@@ -294,18 +299,17 @@ SECTION 5: BLOCKCHAIN COSTS
 ===========================================================================
 ```
 
-### Comparison: BCH vs LWE Performance
+### Comparison: BCH vs Repetition-Code Performance
 
-| Metric | BCH-FE | LWE-FE | Notes |
-|--------|--------|--------|-------|
+| Metric | BCH-FE | Repetition-Code FE | Notes |
+|--------|--------|---------------------|-------|
 | FRR @ 0 flips | 0% | 0% | Equal |
-| FRR @ 29 flips | 0% | 15% | LWE slightly more conservative |
-| FRR @ 30 flips | 72% | 85% | LWE rejects more aggressively |
+| FRR @ 29 flips | 0% | 14% | BCH is deterministic |
+| FRR @ 30 flips | 72% | 92% | Rep-code more conservative |
 | FAR | 0% | 0% | Equal |
-| Enrollment time | ~20 ms | ~60 ms | LWE slower (hash commitment) |
-| Auth time | ~20 ms | ~57 ms | LWE slower |
-| Helper size | ~80 bytes | ~120 bytes | LWE larger |
-| Post-quantum | ⚠️ | ✅ | LWE is PQ-secure |
+| Enrollment time | ~20 ms | ~26 ms | Similar |
+| Auth time | ~20 ms | ~25 ms | Similar |
+| Helper size | ~80 bytes | ~120 bytes | Rep-code larger |
 
 ---
 
@@ -315,22 +319,22 @@ SECTION 5: BLOCKCHAIN COSTS
 
 | Component | Time | % of Total | Bottleneck? |
 |-----------|------|------------|-------------|
-| **CNN Feature Extraction** | ~15 ms | 26% | ⚠️ Moderate |
-| **BioHashing** | ~1 ms | 2% | ✅ Fast |
-| **Fuzzy Extractor (LWE)** | ~40 ms | 68% | 🔴 **Primary** |
-| **Blockchain (mock)** | ~2 ms | 3% | ✅ Fast |
-| **Total** | ~58 ms | 100% | — |
+| **CNN Feature Extraction** | ~15 ms | 58% | 🔴 **Primary** |
+| **BioHashing** | ~1 ms | 4% | ✅ Fast |
+| **Fuzzy Extractor** | ~8 ms | 31% | ⚠️ Moderate |
+| **Blockchain (mock)** | ~2 ms | 7% | ✅ Fast |
+| **Total** | ~26 ms | 100% | — |
 
 ### Root Cause Analysis
 
-**1. LWE Fuzzy Extractor (68% of time)**
-- PBKDF2 with 10,000 iterations: ~35 ms
-- Repetition encode/decode: ~3 ms
-- SHA256 commitment: ~2 ms
-
-**2. CNN Inference (26% of time)**
+**1. CNN Inference (58% of time)**
 - FaceNet forward pass: ~15 ms (GPU)
 - Would be ~100 ms on CPU
+
+**2. Fuzzy Extractor (31% of time)**
+- PBKDF2 with 10,000 iterations: ~5 ms
+- Repetition encode/decode: ~2 ms
+- SHA256 commitment: ~1 ms
 
 **3. Blockchain (Currently Mock)**
 - Real Ethereum: ~10-30 seconds per transaction
@@ -366,11 +370,10 @@ Recommendation: Use 10,000 for balance, increase for sensitive data
 
 ## 7. Security Analysis
 
-### LWE Fuzzy Extractor Security
+### Fuzzy Extractor Security
 
 | Property | Status | Notes |
 |----------|--------|-------|
-| **Post-Quantum** | ✅ | No reliance on RSA/ECC |
 | **Key Secrecy** | ✅ | Key hidden by sketch XOR |
 | **Error Tolerance** | ✅ | 29 bits (5.7%) |
 | **Replay Protection** | ✅ | Challenge-response in blockchain |
@@ -381,18 +384,29 @@ Recommendation: Use 10,000 for balance, increase for sensitive data
 | Attack | Mitigation |
 |--------|------------|
 | **Brute Force** | 102-bit key → 2^102 attempts |
-| **Quantum (Grover)** | Post-quantum: still 2^51 attempts |
 | **Helper Data Attack** | Sketch reveals nothing without biometric |
 | **Impostor Attack** | 50% Hamming distance → FAR 0% |
 
-### Comparison: BCH vs LWE Security
+### Comparison: BCH vs Repetition-Code Security
 
-| Property | BCH-FE | LWE-FE |
-|----------|--------|--------|
-| Information-theoretic | ✅ Yes | ❌ Computational |
-| Post-quantum | ⚠️ Partial | ✅ Yes |
-| Proven bounds | ✅ Tight | ⚠️ Heuristic |
+| Property | BCH-FE | Repetition-Code FE |
+|----------|--------|---------------------|
+| Security type | Information-theoretic | Computational (hash commitment) |
+| Error correction | Deterministic | Probabilistic (majority vote) |
+| Proven bounds | ✅ Tight | ⚠️ Empirical |
 | Key recovery hardness | 2^k | 2^k |
+
+### Note on Post-Quantum Security
+
+The current Repetition-Code FE is **not post-quantum secure** by itself. It uses:
+- SHA256 for commitment (quantum-resistant)
+- PBKDF2 for key derivation (quantum-resistant)
+- But the overall construction lacks formal post-quantum guarantees
+
+For true post-quantum security, consider:
+1. Using LWE-based fuzzy extractors on continuous embeddings
+2. Adding a lattice-based key encapsulation layer
+3. Using NIST post-quantum primitives for key derivation
 
 ---
 
@@ -407,15 +421,12 @@ cd biometric_auth
 
 # Install dependencies
 pip install torch facenet-pytorch bchlib numpy
-
-# Optional: LWE FE (included)
-# fuzzy_extractor_lwe.py is already in the project
 ```
 
-### Running with LWE Fuzzy Extractor
+### Running
 
 ```bash
-# Demo mode (auto-selects LWE if available)
+# Demo mode (auto-selects Repetition-Code FE if available)
 python main.py --mode demo
 
 # Benchmark mode
@@ -426,21 +437,21 @@ mv fuzzy_extractor_lwe.py fuzzy_extractor_lwe.py.bak
 python main.py --mode demo
 ```
 
-### Switching Between BCH and LWE
+### Switching Between BCH and Repetition-Code FE
 
 ```python
 # In main.py, the selection is automatic:
 
-# Option 1: Use LWE (default if available)
+# Option 1: Use Repetition-Code FE (default if available)
 from fuzzy_extractor_lwe import LWEFuzzyExtractor as FuzzyExtractor
 
 # Option 2: Use BCH (fallback)
 from fuzzy_extractor import FuzzyExtractor
 
 # Option 3: Explicit selection
-USE_POST_QUANTUM = True  # Set this flag
+USE_REPETITION_FE = True  # Set this flag
 
-if USE_POST_QUANTUM:
+if USE_REPETITION_FE:
     from fuzzy_extractor_lwe import LWEFuzzyExtractor as FuzzyExtractor
 else:
     from fuzzy_extractor import FuzzyExtractor
@@ -449,7 +460,7 @@ else:
 ### API Reference
 
 ```python
-# Both BCH and LWE have identical API:
+# Both BCH and Repetition-Code FE have identical API:
 
 fe = FuzzyExtractor()
 
@@ -505,11 +516,12 @@ security = fe.estimate_security(biometric_entropy=200)
 - [ ] Add Argon2id as KDF option
 - [ ] Optimize repetition factor for specific use cases
 - [ ] Add batch enrollment API
+- [ ] Rename fuzzy_extractor_lwe.py to fuzzy_extractor_rep.py for clarity
 
 ### Medium-Term (v5.0)
 
-- [ ] Implement true LWE-based fuzzy extractor (not code-offset)
-- [ ] Add Ring-LWE for efficiency
+- [ ] Implement true LWE-based fuzzy extractor on continuous embeddings
+- [ ] Add post-quantum key encapsulation layer
 - [ ] IPFS integration for helper data storage
 
 ### Long-Term (v6.0)
@@ -525,13 +537,14 @@ security = fe.estimate_security(biometric_entropy=200)
 ```
 biometric_auth/
 ├── main.py                    # Entry point (auto-selects FE)
-├── fuzzy_extractor.py         # BCH-based FE (v3)
-├── fuzzy_extractor_lwe.py     # LWE-based FE (v4) ← NEW
+├── fuzzy_extractor.py         # BCH-based FE
+├── fuzzy_extractor_lwe.py     # Repetition-code FE (code-offset scheme)
 ├── biohashing.py              # Standard BioHasher
 ├── biohashing_improved.py     # Reliable bit selection
 ├── model.py                   # FaceNet encoder
 ├── blockchain_client.py       # Ethereum client
-├── BiometricAuth.sol      # Smart contract
+├── contracts/
+│   └── BiometricAuth.sol      # Smart contract
 ├── evaluate_improved.py       # LFW evaluation
 ├── evaluate_blockchain.py     # Gas cost analysis
 ├── PROJECT_REPORT4.md         # This document
@@ -543,10 +556,8 @@ biometric_auth/
 ## Appendix B: References
 
 1. Dodis et al., "Fuzzy Extractors: How to Generate Strong Keys from Biometrics", SIAM 2008
-2. Apon et al., "Efficient, Reusable Fuzzy Extractors from LWE", 2017
-3. Regev, "On Lattices, Learning with Errors", STOC 2005
-4. Schroff et al., "FaceNet: A Unified Embedding for Face Recognition", CVPR 2015
-5. NIST Post-Quantum Cryptography Standardization
+2. Schroff et al., "FaceNet: A Unified Embedding for Face Recognition", CVPR 2015
+3. Juels & Wattenberg, "A Fuzzy Commitment Scheme", ACM CCS 1999
 
 ---
 

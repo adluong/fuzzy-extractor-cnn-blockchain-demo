@@ -1,10 +1,18 @@
 """
-LWE-based Fuzzy Extractor
-==========================
+Repetition-Code Fuzzy Extractor
+================================
 
-Post-quantum Fuzzy Extractor with BCH-compatible error tolerance.
+Fuzzy Extractor using code-offset scheme with repetition codes.
+Provides BCH-compatible error tolerance (~5.7%).
 
-Uses repetition code for error correction with explicit threshold enforcement.
+NOTE: Despite the filename "fuzzy_extractor_lwe.py", this implementation
+uses repetition codes, NOT Learning With Errors (LWE). The name is
+historical. True LWE-based fuzzy extractors operate on field elements
+with Gaussian noise, not binary codes with Hamming distance errors.
+
+Construction:
+    Gen(w): k ← random, s ← w ⊕ Rep.encode(k), return (KDF(k), (s, H(k)))
+    Rep(w', (s, h)): k' ← Rep.decode(w' ⊕ s), verify H(k') = h
 
 Author: blockchain_bio project
 """
@@ -18,7 +26,7 @@ from dataclasses import dataclass
 
 @dataclass 
 class LWEParams:
-    """LWE Fuzzy Extractor parameters."""
+    """Fuzzy Extractor parameters (name kept for API compatibility)."""
     n: int = 64
     m: int = 64
     q: int = 2**24
@@ -29,7 +37,7 @@ class LWEParams:
 
 @dataclass
 class LWEHelperData:
-    """Helper data for LWE-based fuzzy extractor."""
+    """Helper data for fuzzy extractor (name kept for API compatibility)."""
     sketch: bytes           # XOR sketch
     key_commitment: bytes   # Hash commitment
     salt: bytes             # KDF salt
@@ -69,7 +77,9 @@ HelperData = LWEHelperData
 
 class LWEFuzzyExtractor:
     """
-    LWE-based Fuzzy Extractor with BCH-compatible error tolerance.
+    Repetition-Code Fuzzy Extractor with BCH-compatible error tolerance.
+    
+    NOTE: Class named "LWE" for API compatibility, but uses repetition codes.
     
     Uses repetition code where each key bit is encoded as rep_factor bits.
     This allows correction of up to (rep_factor-1)/2 errors per block.
@@ -78,13 +88,12 @@ class LWEFuzzyExtractor:
     - Key: 102 bits
     - Each bit repeated 5 times = 510 bits
     - Can correct 2 errors per 5-bit block
-    - Total correction: ~40% per block
     
     Explicit threshold enforcement ensures BCH compatibility.
     """
     
     def __init__(self, config=None):
-        """Initialize LWE Fuzzy Extractor."""
+        """Initialize Repetition-Code Fuzzy Extractor."""
         self.params = config if isinstance(config, LWEParams) else LWEParams()
         self.p = self.params
         
@@ -96,8 +105,7 @@ class LWEFuzzyExtractor:
         # Repetition factor
         self.rep_factor = 5
         
-        print(f"LWE-FuzzyExtractor initialized: LWE(n={self.p.n}, m={self.p.m}, q=2^24)")
-        print(f"  - Post-quantum: Yes (LWE-based)")
+        print(f"Repetition-Code FE initialized: Rep(factor={self.rep_factor}, t={self.t})")
         print(f"  - Error tolerance: {self.t} bits ({self.p.error_tolerance_rate*100:.1f}%)")
     
     def _xor_bytes(self, a: bytes, b: bytes) -> bytes:
@@ -254,11 +262,9 @@ class LWEFuzzyExtractor:
         """Estimate security parameters."""
         return {
             'code_parameters': {
-                'type': 'LWE',
-                'n': self.p.n,
-                'm': self.p.m,
-                'q': self.p.q,
-                'sigma': self.p.sigma
+                'type': 'Repetition',
+                'rep_factor': self.rep_factor,
+                'key_bits': 102,
             },
             'error_tolerance': {
                 'max_errors': self.t,
@@ -267,10 +273,10 @@ class LWEFuzzyExtractor:
             'entropy_analysis': {
                 'biometric_entropy': biometric_entropy,
                 'leakage_bits': 512,
-                'effective_security_bits': min(128, biometric_entropy),
+                'effective_security_bits': min(102, biometric_entropy),
             },
-            'post_quantum': True,
-            'recommendation': 'SECURE (LWE-based, post-quantum)'
+            'post_quantum': False,  # Repetition code is not post-quantum
+            'recommendation': 'SECURE (code-offset with hash commitment)'
         }
 
 
@@ -279,9 +285,9 @@ FuzzyExtractor = LWEFuzzyExtractor
 
 
 def test_lwe_fuzzy_extractor():
-    """Test LWE-based fuzzy extractor."""
+    """Test repetition-code fuzzy extractor."""
     print("=" * 70)
-    print("LWE FUZZY EXTRACTOR TEST")
+    print("REPETITION-CODE FUZZY EXTRACTOR TEST")
     print("=" * 70)
     
     fe = LWEFuzzyExtractor()

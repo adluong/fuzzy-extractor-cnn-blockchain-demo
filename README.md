@@ -1,8 +1,6 @@
 # CNN + Fuzzy Extractor + Blockchain Biometric Authentication
 
-- Important note: This project is created with the help of Claude and is for testing purpose only, DO NOT use it in product - adluong.
-
-> Post-quantum biometric authentication using FaceNet, LWE-based fuzzy extractors, and Ethereum smart contracts.
+> Biometric authentication using FaceNet, fuzzy extractors, and Ethereum smart contracts.
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -25,8 +23,8 @@ python main.py --mode demo
 | Feature | Description |
 |---------|-------------|
 | **FaceNet CNN** | Pretrained on VGGFace2, 512-D embeddings |
-| **LWE Fuzzy Extractor** | Post-quantum secure, 5.7% error tolerance |
-| **BCH Fuzzy Extractor** | Classic option, BCH(511, 268, 29) |
+| **BCH Fuzzy Extractor** | BCH(511, 268, 29), information-theoretic security |
+| **Repetition-Code FE** | Code-offset with repetition codes, 5.7% error tolerance |
 | **Improved BioHash** | Reliable bit selection, 0.7% intra-class variation |
 | **Blockchain Auth** | Ethereum smart contract (mock or real) |
 
@@ -36,7 +34,7 @@ python main.py --mode demo
 python main.py --mode benchmark
 ```
 
-### LWE Error Correction
+### Repetition-Code FE Error Correction
 ```
   ✓ Bit flips  0: FRR =   0.0%
   ✓ Bit flips 29: FRR =  14.0%  ← Threshold
@@ -68,9 +66,10 @@ biometric_auth/
 ├── biohashing.py            # Standard BioHasher
 ├── biohashing_improved.py   # Improved BioHasher
 ├── fuzzy_extractor.py       # BCH-based FE
-├── fuzzy_extractor_lwe.py   # LWE-based FE (post-quantum)
+├── fuzzy_extractor_lwe.py   # Repetition-code FE (code-offset scheme)
 ├── blockchain_client.py     # Ethereum client
-└── BiometricAuth.sol    # Smart contract
+└── contracts/
+    └── BiometricAuth.sol    # Smart contract
 ```
 
 ## Usage
@@ -86,7 +85,7 @@ Runs end-to-end demonstration: enrollment → authentication → impostor reject
 python main.py --mode benchmark
 ```
 Runs comprehensive 5-section evaluation:
-1. LWE error correction unit test
+1. Fuzzy extractor error correction unit test
 2. Standard BioHash evaluation
 3. Improved BioHash evaluation
 4. Performance benchmark
@@ -103,16 +102,16 @@ python evaluate_blockchain.py
 
 ## Fuzzy Extractor Selection
 
-The system auto-selects LWE (post-quantum) by default:
+The system auto-selects the repetition-code FE by default:
 
 ```python
 # In main.py - automatic selection
 try:
     from fuzzy_extractor_lwe import LWEFuzzyExtractor as FuzzyExtractor
-    # Post-quantum secure
+    # Repetition-code based (code-offset scheme)
 except ImportError:
     from fuzzy_extractor import FuzzyExtractor
-    # Classic BCH
+    # BCH-based
 ```
 
 To force BCH:
@@ -149,7 +148,7 @@ success, errors = pipeline.authenticate(image, helper_data)
 ## Documentation
 
 - **[PROJECT_REPORT4.md](PROJECT_REPORT4.md)** — Complete technical documentation
-- **[BiometricAuth.sol](BiometricAuth.sol)** — Smart contract source
+- **[contracts/BiometricAuth.sol](contracts/BiometricAuth.sol)** — Smart contract source
 
 ## Requirements
 
@@ -169,6 +168,5 @@ MIT License - see LICENSE file.
 
 ## References
 
-1. Dodis et al., "Fuzzy Extractors", SIAM 2008
-2. Schroff et al., "FaceNet", CVPR 2015
-3. NIST Post-Quantum Cryptography Standardization
+1. Dodis et al., "Fuzzy Extractors: How to Generate Strong Keys from Biometrics", SIAM 2008
+2. Schroff et al., "FaceNet: A Unified Embedding for Face Recognition", CVPR 2015
