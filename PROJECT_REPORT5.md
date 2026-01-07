@@ -109,13 +109,14 @@ The True LWE FE is based on the Learning With Errors problem:
 **Gen(w):**
 ```
 1. M ← Quantize(w)           # Map embedding to Z_q^m
-2. seed ← random(16 bytes)
-3. A ← SHAKE128(seed)        # Matrix A ∈ Z_q^{m×n}
-4. b ← {0,1}^n               # Binary secret
-5. e ← χ_σ^m                 # Gaussian error (σ=1.4)
-6. c ← A·b + e + M (mod q)   # LWE ciphertext
-7. key ← KDF(b)
-8. return (key, helper=(seed, c, b_seed, e_seed))
+2. commitment ← SHA256(M)    # Commitment for verification (prevents FAR)
+3. seed ← random(16 bytes)
+4. A ← SHAKE128(seed)        # Matrix A ∈ Z_q^{m×n}
+5. b ← {0,1}^n               # Binary secret
+6. e ← χ_σ^m                 # Gaussian error (σ=1.4)
+7. c ← A·b + e + M (mod q)   # LWE ciphertext
+8. key ← KDF(b)
+9. return (key, helper=(seed, c, b_seed, e_seed, commitment))
 ```
 
 **Rep(w', helper):**
@@ -123,8 +124,10 @@ The True LWE FE is based on the Learning With Errors problem:
 1. M' ← Quantize(w')
 2. A, b, e ← Regenerate from seeds
 3. M_rec ← c - A·b - e (mod q)
-4. distance ← ‖M_rec - M'‖ / q
-5. if distance < threshold:
+4. if SHA256(M_rec) ≠ commitment:   # Commitment check (prevents FAR)
+      return ⊥
+5. distance ← ‖M_rec - M'‖ / q
+6. if distance < threshold:
       return KDF(b)
    else:
       return ⊥
@@ -134,11 +137,12 @@ The True LWE FE is based on the Learning With Errors problem:
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| n | 64 | Secret dimension |
-| m | 128 | Ciphertext/message dimension |
+| n | 128 | Secret dimension |
+| m | 512 | Ciphertext/message dimension (all embedding dims) |
 | q | 2²⁴ | Modulus (16,777,216) |
 | σ | 1.4 | Gaussian std dev |
 | L | 2¹⁶ | Matrix entry bound |
+| error_margin | 0.28 | Distance threshold (~10% embedding noise) |
 
 ### Quantization Scheme
 
@@ -168,15 +172,19 @@ def quantize(embedding):
 The tolerance is based on Euclidean distance between embeddings:
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│  Embedding Noise    →    Quantized Distance    →   Result │
-├────────────────────────────────────────────────────────────┤
-│     0%                      0.00                   ✓ Pass │
-│     5%                      ~0.10                  ✓ Pass │
-│    10%                      ~0.14                  ✓ Pass │
-│    15%                      ~0.15                  ~ Edge │
-│    20%                      ~0.16                  ✗ Fail │
-└────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  Embedding Noise    →    Quantized Distance    →   FRR   → Result │
+├────────────────────────────────────────────────────────────────────┤
+│     0%                      0.00                    0%      ✓ Pass │
+│     2%                      ~0.11                   0%      ✓ Pass │
+│     5%                      ~0.21                   0%      ✓ Pass │
+│     8%                      ~0.25                   0%      ✓ Pass │
+│    10%                      ~0.27                  20%      ~ Edge │
+│    12%                      ~0.29                  85%      ✗ Fail │
+│    15%+                     >0.30                 100%      ✗ Fail │
+└────────────────────────────────────────────────────────────────────┘
+
+Threshold: 0.28 quantized distance ≈ 10% embedding noise
 ```
 
 ---
@@ -198,8 +206,8 @@ The tolerance is based on Euclidean distance between embeddings:
 
 | Metric | BCH-FE | Rep-Code FE | True LWE FE |
 |--------|--------|-------------|-------------|
-| Enrollment | ~20 ms | ~26 ms | ~46 ms |
-| Authentication | ~20 ms | ~25 ms | ~46 ms |
+| Enrollment | ~20 ms | ~26 ms | ~51 ms |
+| Authentication | ~20 ms | ~25 ms | ~51 ms |
 | Helper size | ~80 bytes | ~120 bytes | ~2152 bytes |
 
 ### Security Comparison
@@ -254,8 +262,8 @@ Impostor detection:
 
 SECTION 2: PERFORMANCE
 ----------------------------------------------------------------------
-  Enrollment:     46.17 ± 5.14 ms
-  Authentication: 45.66 ± 3.61 ms
+  Enrollment:     51.69 ± 5.27 ms
+  Authentication: 51.07 ± 3.60 ms
 
 SECTION 3: SECURITY
 ----------------------------------------------------------------------
@@ -277,13 +285,69 @@ SECTION 3: SECURITY
 │ Tolerance        5.7%          5.7%           ~10% noise                │
 │ FRR @ threshold  0%            14%            20%                       │
 │ FAR              0%            0%             0%                        │
-│ Enrollment       ~20 ms        ~26 ms         ~46 ms                    │
-│ Authentication   ~20 ms        ~25 ms         ~46 ms                    │
+│ Enrollment       ~20 ms        ~26 ms         ~51 ms                    │
+│ Authentication   ~20 ms        ~25 ms         ~51 ms                    │
 │ Helper Size      80 B          120 B          2152 B                    │
 │ Post-Quantum     Partial       No             YES                       │
 │ Security Bits    ~128          ~102           ~797                      │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Function-Level Bottleneck Analysis
+
+Profiling of True LWE FE operations (n=128, m=512):
+
+**gen() Breakdown:**
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Function                    Time (ms)      %       Notes                │
+├─────────────────────────────────────────────────────────────────────────┤
+│ _gen_matrix_from_seed       39.29        86.5%    ← PRIMARY BOTTLENECK  │
+│ _derive_key (PBKDF2)         4.03         8.9%    10000 iterations      │
+│ _sample_gaussian             1.59         3.5%    m=512 samples         │
+│ np.dot(A, b) mod q           0.05         0.1%    Matrix multiply       │
+│ _quantize_embedding          0.02         0.0%                          │
+│ _compute_commitment          0.01         0.0%    SHA256                │
+│ _sample_binary               0.02         0.0%                          │
+│ c = Ab + e + M               0.01         0.0%                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ TOTAL gen()                 45.45       100.0%                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**rep() Breakdown:**
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Function                    Time (ms)      %       Notes                │
+├─────────────────────────────────────────────────────────────────────────┤
+│ _gen_matrix_from_seed       38.42        85.4%    ← PRIMARY BOTTLENECK  │
+│ _derive_key (PBKDF2)         3.30         7.3%                          │
+│ _sample_gaussian             1.59         3.5%                          │
+│ A·b + e mod q                0.05         0.1%                          │
+│ _sample_binary               0.02         0.0%                          │
+│ _quantize_embedding          0.02         0.0%                          │
+│ distance calculation         0.02         0.0%                          │
+│ _compute_commitment          0.00         0.0%                          │
+│ M_rec = c - Ab - e           0.00         0.0%                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│ TOTAL rep()                 45.02       100.0%                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Bottleneck Root Cause:**
+
+`_gen_matrix_from_seed()` dominates at **~86%** of total time because:
+1. Generates m×n = 512×128 = **65,536 field elements**
+2. Each element requires SHAKE128 expansion + modular reduction
+3. Pure Python loop over 65K iterations
+
+**Optimization Opportunities:**
+| Optimization | Expected Speedup | Effort |
+|--------------|------------------|--------|
+| Vectorized NumPy SHAKE | 5-10x | Medium |
+| Cython/Numba JIT | 10-20x | Medium |
+| C extension (like BCH) | 50-100x | High |
+| Ring-LWE (m=n=512) | 2x (fewer ops) | Medium |
 
 ---
 
@@ -395,14 +459,16 @@ python main_true_lwe.py --mode benchmark
 
 ### Short-Term (v5.1)
 
-- [ ] Tune LWE parameters for optimal security/performance
-- [ ] Add Ring-LWE variant for smaller helper data
+- [ ] **Optimize `_gen_matrix_from_seed`** — primary bottleneck (86% of time)
+  - Vectorized NumPy implementation
+  - Cython/Numba JIT compilation
+- [ ] Add Ring-LWE variant for smaller helper data and faster operations
 - [ ] Integrate True LWE into main.py as selectable option
 
 ### Medium-Term (v6.0)
 
+- [ ] C extension for matrix generation (like bchlib)
 - [ ] Hybrid scheme: True LWE + BCH for defense in depth
-- [ ] Add identity-based encryption layer
 - [ ] IPFS integration for helper data storage
 
 ### Long-Term (v7.0)
